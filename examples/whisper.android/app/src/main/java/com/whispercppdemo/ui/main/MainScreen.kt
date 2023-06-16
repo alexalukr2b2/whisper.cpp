@@ -1,5 +1,6 @@
 package com.whispercppdemo.ui.main
 
+import android.Manifest
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -8,21 +9,26 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.whispercppdemo.R
 
+
+@Preview
 @Composable
 fun MainScreen(viewModel: MainScreenViewModel) {
     MainScreen(
         canTranscribe = viewModel.canTranscribe,
+        canSummarize = viewModel.canSummarize,
         isRecording = viewModel.isRecording,
         messageLog = viewModel.dataLog,
         onBenchmarkTapped = viewModel::benchmark,
         onTranscribeSampleTapped = viewModel::transcribeSample,
-        onRecordTapped = viewModel::toggleRecord
+        onRecordTapped = viewModel::toggleRecord,
+        onSummarizeTapped = viewModel::sendTranscribedTextToChatGpt
     )
 }
 
@@ -30,11 +36,13 @@ fun MainScreen(viewModel: MainScreenViewModel) {
 @Composable
 private fun MainScreen(
     canTranscribe: Boolean,
+    canSummarize: Boolean,
     isRecording: Boolean,
     messageLog: String,
     onBenchmarkTapped: () -> Unit,
     onTranscribeSampleTapped: () -> Unit,
-    onRecordTapped: () -> Unit
+    onRecordTapped: () -> Unit,
+    onSummarizeTapped: () -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -53,11 +61,11 @@ private fun MainScreen(
                     BenchmarkButton(enabled = canTranscribe, onClick = onBenchmarkTapped)
                     TranscribeSampleButton(enabled = canTranscribe, onClick = onTranscribeSampleTapped)
                 }
-                RecordButton(
-                    enabled = canTranscribe,
-                    isRecording = isRecording,
-                    onClick = onRecordTapped
-                )
+                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()){
+                    RecordButton(enabled = canTranscribe, isRecording = isRecording, onClick = onRecordTapped)
+                    SummarizeButton(enabled = canSummarize, onClick = onSummarizeTapped)
+                }
+
             }
             MessageLog(messageLog)
         }
@@ -82,6 +90,28 @@ private fun BenchmarkButton(enabled: Boolean, onClick: () -> Unit) {
 private fun TranscribeSampleButton(enabled: Boolean, onClick: () -> Unit) {
     Button(onClick = onClick, enabled = enabled) {
         Text("Transcribe sample")
+    }
+}
+
+
+@OptIn(ExperimentalPermissionsApi::class)
+@Composable
+private fun SummarizeButton(enabled: Boolean, onClick: () -> Unit) {
+    val internetPermissionState = rememberPermissionState(
+        permission = Manifest.permission.INTERNET,
+        onPermissionResult = {granted ->
+            if (granted) {
+                onClick()
+            }
+        })
+    Button(onClick = {
+        if (internetPermissionState.status.isGranted) {
+            onClick()
+        } else {
+            internetPermissionState.launchPermissionRequest()
+        }
+    }, enabled = enabled) {
+        Text("Summarize")
     }
 }
 

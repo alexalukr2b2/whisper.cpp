@@ -13,6 +13,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.whispercppdemo.R
 import com.whispercppdemo.media.decodeWaveFile
 import com.whispercppdemo.recorder.Recorder
 import com.whispercppdemo.whisper.WhisperContext
@@ -27,10 +28,13 @@ private const val LOG_TAG = "MainScreenViewModel"
 class MainScreenViewModel(private val application: Application) : ViewModel() {
     var canTranscribe by mutableStateOf(false)
         private set
+    var canSummarize by mutableStateOf(false)
+        private set
     var dataLog by mutableStateOf("")
         private set
     var isRecording by mutableStateOf(false)
         private set
+    var transcribedText by mutableStateOf("")
 
     private val modelsPath = File(application.filesDir, "models")
     private val samplesPath = File(application.filesDir, "samples")
@@ -39,11 +43,21 @@ class MainScreenViewModel(private val application: Application) : ViewModel() {
     private var mediaPlayer: MediaPlayer? = null
     private var recordedFile: File? = null
 
+    private var chatGptService: ChatGptService? = null
+
+
     init {
         viewModelScope.launch {
             printSystemInfo()
             loadData()
+            initChatGPT()
         }
+    }
+
+    private suspend fun initChatGPT(){
+        val apiKey = application.getString(R.string.chat_gpt_api_key)
+
+        chatGptService = ChatGptService(apiKey)
     }
 
     private suspend fun printSystemInfo() {
@@ -146,12 +160,14 @@ class MainScreenViewModel(private val application: Application) : ViewModel() {
             val text = whisperContext?.transcribeData(data)
             val elapsed = System.currentTimeMillis() - start
             printMessage("Done ($elapsed ms): $text\n")
+            transcribedText = text ?: ""
         } catch (e: Exception) {
             Log.w(LOG_TAG, e)
             printMessage("${e.localizedMessage}\n")
         }
 
         canTranscribe = true
+        canSummarize = true
     }
 
     fun toggleRecord() = viewModelScope.launch {
@@ -178,6 +194,21 @@ class MainScreenViewModel(private val application: Application) : ViewModel() {
             Log.w(LOG_TAG, e)
             printMessage("${e.localizedMessage}\n")
             isRecording = false
+        }
+    }
+
+    fun sendTranscribedTextToChatGpt() {
+        viewModelScope.launch {
+            try {
+                printMessage("Summarizing data...\n")
+                val response = chatGptService?.processText(transcribedText)
+                //val response = chatGptService?.processText("In a quaint village, a mischievous cat named Whiskers stumbled upon a mysterious map. Joined by a curious rabbit, they embarked on a thrilling adventure filled with hidden treasures, magical creatures, and unexpected friendships. Together, they uncovered secrets that brought joy and wonder to their lives forever.")
+                printMessage("Result:\n")
+                printMessage(response ?: "")
+            } catch (e: Exception) {
+                Log.w(LOG_TAG, e)
+                // Handle any error that occurred during the API request...
+            }
         }
     }
 
