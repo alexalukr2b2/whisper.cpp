@@ -46,16 +46,26 @@ class MainScreenViewModel(private val application: Application) : ViewModel() {
     private var chatGptService: ChatGptService? = null
 
 
+
     init {
         viewModelScope.launch {
             printSystemInfo()
             loadData()
-            initChatGPT()
+            //initChatGPT()
         }
     }
 
     private suspend fun initChatGPT(){
-        val apiKey = application.getString(R.string.chat_gpt_api_key)
+        val preference = application.getSharedPreferences("openai_prefs", Context.MODE_PRIVATE);
+        var apiKey = preference.getString("apiKey", "")
+        //developers way
+        if(apiKey === "" || apiKey === null) {
+            apiKey = application.getString(R.string.chat_gpt_api_key)
+        }
+        /*
+        if(apiKey === "") {
+            throw RuntimeException("Missing api key")
+        }*/
 
         chatGptService = ChatGptService(apiKey)
     }
@@ -199,6 +209,7 @@ class MainScreenViewModel(private val application: Application) : ViewModel() {
 
     fun sendTranscribedTextToChatGpt() {
         viewModelScope.launch {
+            initChatGPT()
             try {
                 printMessage("Summarizing data...\n")
                 val response = chatGptService?.processText(transcribedText)
@@ -207,6 +218,7 @@ class MainScreenViewModel(private val application: Application) : ViewModel() {
                 printMessage(response ?: "")
             } catch (e: Exception) {
                 Log.w(LOG_TAG, e)
+                printMessage(e.toString())
                 // Handle any error that occurred during the API request...
             }
         }
